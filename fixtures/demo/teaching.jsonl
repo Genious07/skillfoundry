@@ -1,0 +1,1 @@
+{"case_id": "acme:AC-100", "author": "catalog.ops", "corrected": {"unit_price": "10.0000", "price_basis": "per_unit_from_pack", "pack_size": 12}, "reason": "120 is the carton price and this carton holds 12, so the per item price is 10.", "condition_hint": "Apply when the price is quoted per pack and the pack size is an explicit count."}

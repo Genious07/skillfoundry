@@ -1,0 +1,11 @@
+supplier_sku,description,price,price_unit,pack_size
+BO-200,Bolt 12 mm,10,item,12 mm
+BO-201,Rod 8 mm,4.75,each,8 mm
+BO-202,Washer 20 mm,0.90,item,20 mm
+BO-203,Cable 5 m,22,item,5 m
+BO-204,Bolt pack 12 mm,144,carton,12
+BO-205,Sheet 3 kg,31,item,3 kg
+BO-206,Fastener kit,55,box,10
+BO-207,Pin 6 mm carton,90,carton,6 mm
+BO-208,Nozzle,7.20,unit,
+BO-209,Coupling 2 in,18,each,2 in

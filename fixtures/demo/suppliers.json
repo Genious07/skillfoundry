@@ -1,0 +1,8 @@
+{
+  "acme": {"locale": "us", "currency": "USD", "split": "teach",
+           "note": "Carton priced feed with explicit pack counts. The teaching family."},
+  "borealis": {"locale": "us", "currency": "USD", "split": "teach",
+               "note": "Per item feed whose pack column often carries a dimension, not a count."},
+  "corvid": {"locale": "eu", "currency": "EUR", "split": "holdout",
+             "note": "European decimal convention. Held out and never shown to the proposer."}
+}

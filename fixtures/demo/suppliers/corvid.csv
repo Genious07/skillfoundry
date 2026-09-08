@@ -1,0 +1,11 @@
+supplier_sku,description,price,price_unit,pack_size
+CO-300,Bolt carton,"1.234,56",carton,12
+CO-301,Washer,"0,85",item,
+CO-302,Nut carton,"96,00",carton,8
+CO-303,Rod 10 mm,"12,50",each,10 mm
+CO-304,Screw case,"144,00",case,24
+CO-305,Anchor,"3,20",unit,
+CO-306,Clip carton,"75,00",carton,10 mm
+CO-307,Bracket,"210,00",box,15
+CO-308,Pin,"1,05",each,
+CO-309,Spacer carton,"100,00",carton,7

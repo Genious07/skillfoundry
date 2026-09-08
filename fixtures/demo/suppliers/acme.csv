@@ -1,0 +1,13 @@
+supplier_sku,description,price,price_unit,pack_size
+AC-100,Hex bolt pack,120,carton,12
+AC-101,Washer pack,60,carton,24
+AC-102,Nut pack,45,carton,15
+AC-103,Anchor bolt,8.50,each,
+AC-104,Screw pack,99.99,carton,20
+AC-105,Rivet box,150,box,50
+AC-106,Spacer bundle,72,bundle,6
+AC-107,Threaded rod,14.25,item,
+AC-108,Clip carton,100,carton,3
+AC-109,Bracket case,240,case,16
+AC-110,Bolt carton unlabelled,45,carton,
+AC-111,Grommet carton,30,carton,12 pk
