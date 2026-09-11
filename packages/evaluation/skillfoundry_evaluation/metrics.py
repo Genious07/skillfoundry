@@ -150,7 +150,7 @@ def grade(case: Case, execution: Execution) -> CaseOutcome:
             fields_correct=fields_correct,
         )
 
-    if actual_price == expected.unit_price and actual_basis == expected.price_basis:
+    if fields_correct == fields_total:
         return CaseOutcome(
             **base,
             verdict=Verdict.CORRECT_VALUE,
@@ -199,8 +199,10 @@ def _describe(case: Case) -> str:
 
 
 def _ratio(actual: Decimal, expected: Decimal) -> Decimal | None:
-    if actual == 0 or expected == 0:
+    if actual == expected == 0:
         return None
+    if actual <= 0 or expected <= 0:
+        return Decimal("Infinity")
     high, low = (actual, expected) if actual > expected else (expected, actual)
     return high / low
 
@@ -209,6 +211,7 @@ def _ratio(actual: Decimal, expected: Decimal) -> Decimal | None:
 class Metrics:
     total: int
     correct: int
+    correct_covered: int
     critical: int
     critical_wrong_factor: int
     critical_fabricated: int
@@ -238,7 +241,7 @@ class Metrics:
 
     @property
     def accuracy_on_covered(self) -> float:
-        return self.correct / self.covered if self.covered else 0.0
+        return self.correct_covered / self.covered if self.covered else 0.0
 
 
 def summarize(outcomes: Sequence[CaseOutcome]) -> Metrics:
@@ -246,17 +249,29 @@ def summarize(outcomes: Sequence[CaseOutcome]) -> Metrics:
         1
         for o in outcomes
         if o.verdict
-        not in {Verdict.CORRECT_REVIEW, Verdict.WRONG_REVIEW_CODE, Verdict.OVER_ABSTAINED, Verdict.FAULTED}
+        not in {
+            Verdict.CORRECT_REVIEW,
+            Verdict.WRONG_REVIEW_CODE,
+            Verdict.OVER_ABSTAINED,
+            Verdict.FAULTED,
+        }
     )
     return Metrics(
         total=len(outcomes),
         correct=sum(1 for o in outcomes if o.verdict.is_correct),
+        correct_covered=sum(o.verdict is Verdict.CORRECT_VALUE for o in outcomes),
         critical=sum(1 for o in outcomes if o.verdict.is_critical),
-        critical_wrong_factor=sum(1 for o in outcomes if o.verdict is Verdict.CRITICAL_WRONG_FACTOR),
-        critical_fabricated=sum(1 for o in outcomes if o.verdict is Verdict.CRITICAL_FABRICATED),
+        critical_wrong_factor=sum(
+            1 for o in outcomes if o.verdict is Verdict.CRITICAL_WRONG_FACTOR
+        ),
+        critical_fabricated=sum(
+            1 for o in outcomes if o.verdict is Verdict.CRITICAL_FABRICATED
+        ),
         over_abstained=sum(1 for o in outcomes if o.verdict is Verdict.OVER_ABSTAINED),
         wrong_value=sum(1 for o in outcomes if o.verdict is Verdict.WRONG_VALUE),
-        wrong_review_code=sum(1 for o in outcomes if o.verdict is Verdict.WRONG_REVIEW_CODE),
+        wrong_review_code=sum(
+            1 for o in outcomes if o.verdict is Verdict.WRONG_REVIEW_CODE
+        ),
         faulted=sum(1 for o in outcomes if o.verdict is Verdict.FAULTED),
         covered=covered,
         fields_total=sum(o.fields_total for o in outcomes),
@@ -301,7 +316,11 @@ def compare_paired(
 ) -> PairedComparison:
     base_index = {o.case_id: o for o in baseline}
     cand_index = {o.case_id: o for o in candidate}
-    shared = sorted(set(base_index) & set(cand_index))
+    if len(base_index) != len(baseline) or len(cand_index) != len(candidate):
+        raise ValueError("duplicate case IDs cannot be paired")
+    if set(base_index) != set(cand_index):
+        raise ValueError("paired comparison requires identical case IDs")
+    shared = sorted(base_index)
 
     both_correct = both_wrong = fixed = broke = 0
     for case_id in shared:

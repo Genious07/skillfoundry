@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "skillfoundry"
-version = "0.1.0"
+version = "0.2.0"
 description = "Turn a human correction into a reusable, tested catalog procedure"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,14 +12,16 @@ license = { text = "MIT" }
 dependencies = ["pydantic>=2.7"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "httpx==0.28.1"]
+web = ["fastapi==0.141.1", "uvicorn==0.52.4"]
 
 [project.scripts]
 skillfoundry = "skillfoundry_cli.main:main"
+skillfoundry-web = "skillfoundry_api.app:main"
 
 [tool.setuptools.packages.find]
-where = ["packages/domain", "packages/evaluation", "packages/cli"]
+where = ["packages/domain", "packages/evaluation", "packages/cli", "services/api"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["packages/domain", "packages/evaluation", "packages/cli"]
+pythonpath = ["packages/domain", "packages/evaluation", "packages/cli", "services/api"]

@@ -7,10 +7,48 @@ missing condition: a unit, an exception, an authority rule, or a prerequisite.
 SkillFoundry makes that condition explicit, then tests whether it generalizes
 before anyone is allowed to publish it.
 
-This repository is **milestone A** of the SkillFoundry blueprint: the trusted
-execution core, the evaluation harness, and the release gate. The web
-workbench, HTTP API, and model backed rule proposer are later milestones. What
-is here runs, is measured, and is tested.
+This repository includes the Milestone A execution core and a local teaching
+workbench: a bounded slice of Milestone B. Save a correction, choose one of two
+manual rule templates, test the complete synthetic suite, inspect regressions,
+and reopen or export the saved evidence. No API key is needed.
+
+![SkillFoundry teaching workbench](docs/media/workbench.png)
+
+## Run the workbench
+
+Requires Python 3.11+, Node.js 20.19+ or 22.12+, and uv. Install dependencies
+once; the application then runs locally without external services or model calls.
+
+```bash
+git clone https://github.com/Genious07/skillfoundry.git
+cd skillfoundry
+make install
+make dev
+```
+
+Open **http://localhost:8020**. The API serves the compiled frontend and saves
+work to `skillfoundry.db`. Stop it with Ctrl+C. Set `SKILLFOUNDRY_DB` to choose
+another database location. Keep this unauthenticated prototype on localhost.
+
+1. Start with **AC-100**: 120 per carton of 12. Save a unit price of 10, a pack
+   count of 12, and the reason that conversion requires an explicit item count.
+2. Select **Explicit pack rule**. The adjacent BO-200 challenge shows why a
+   diameter of 12 mm must leave its per-item price of 10 unchanged.
+3. Run the challenge suite. Read correct decisions alongside automatic coverage:
+   38 correct decisions include seven appropriate requests for review.
+4. Select **Divide by any number** and run again. Inspect the eight new critical
+   errors and the blocked gate. Filter regressions and expand a saved trace.
+5. Reopen an evaluation in **Saved work**, or export its evidence JSON. Refreshing
+   the page keeps persisted history, but does not automatically select a run.
+6. Try your own price and pack text in the scratchpad. It executes the selected
+   rule without modifying the curated fixture labels.
+
+Corrections are persisted evidence; they do not automatically rewrite a rule.
+The templates are manually authored. Passing this demo gate does not publish a
+procedure or establish accuracy on real supplier feeds.
+
+See [audit findings](docs/audit.md), [design rationale](docs/design.md),
+[local operations](docs/operations.md), and the [SVG brand kit](apps/web/public/brand).
 
 ## The problem, concretely
 
@@ -69,7 +107,7 @@ unknown and the row is declined rather than guessed.
 
 ## Install
 
-Requires Python 3.11 or newer. No API key, no network access, no database.
+CLI-only installation requires Python 3.11 or newer. The CLI needs no database or API key. Network access is needed to install dependencies.
 
 ```bash
 git clone https://github.com/Genious07/skillfoundry.git
@@ -87,11 +125,11 @@ fixtures, and every one is pinned by a test in
 ```
 $ skillfoundry evaluate
 fixtures      fixtures/demo
-case suite    32 real, 6 generated
-held out      10 real cases from suppliers ['corvid'], never shown to the proposer
+case suite    32 synthetic source fixtures, 6 authored challenges
+held out      10 source fixtures from suppliers ['corvid'], excluded from teaching; visible synthetic demo
 taught        1 correction(s) from teaching.jsonl
 
-Full suite, real and generated cases together
+Full synthetic suite, source fixtures and authored challenges together
 procedure                           rows  correct  coverage  critical  abstain   fields
 ---------------------------------------------------------------------------------------
 Baseline 1, original procedure        38  14/38        100%        24       0%      35%
@@ -115,10 +153,10 @@ Release gate: PUBLISHABLE
          none introduced
   [pass] Every case reaches a defined terminal state
          no faults
-  [pass] Positive paired performance against the original on real held out cases
-         fixed 6, broke 0 of 10 held out cases, exact two sided p=0.0312
+  [pass] Positive paired performance against the original on supplier-held-out source fixtures
+         fixed 6, broke 0 of 10 held out cases, exact two sided p=0.03125
   [pass] Generalizes beyond recalling the taught row
-         fixed 23, broke 0 against verbatim recall over 38 cases, exact two sided p=0.0000
+         fixed 23, broke 0 against verbatim recall over 38 cases, exact two sided p=2.384e-07
   [pass] Every regression against the original has been explicitly reviewed
          no unreviewed regressions
 
@@ -128,7 +166,7 @@ Release gate: BLOCKED
   [FAIL] Introduces no new critical unit errors on the full suite
          8 new critical cases: borealis:BO-200, borealis:BO-201, borealis:BO-202,
          borealis:BO-203, borealis:BO-205, borealis:BO-209, corvid:CO-303, gen:002
-  [pass] Positive paired performance against the original on real held out cases
+  [pass] Positive paired performance against the original on supplier-held-out source fixtures
          fixed 5, broke 1 of 10 held out cases, exact two sided p=0.2188
 ```
 
@@ -146,7 +184,8 @@ A procedure is a typed AST over eight operators: `read_field`, `parse_unit`,
 `lookup`, `compare`, `branch`, `convert`, `emit`, `request_review`. Every
 operator is implemented by trusted Python with declared input and output types.
 There is no `eval` and no `exec`. A model may propose combinations of these
-nodes and nothing else, so the worst a bad proposal can do is fail validation.
+nodes and nothing else. Structural validation limits execution, but a valid rule
+can still make incorrect decisions. The evaluation gate checks that separate risk.
 
 Validation runs before execution and rejects: an operator outside the
 procedure's declared allowed set, a read of a field not in the input schema, a
@@ -200,8 +239,8 @@ A candidate has to beat the original procedure **and** beat verbatim recall of
 the taught correction. Without the second baseline, memorizing one row would
 count as learning. Baseline 2 is a deterministic stand in for pasting the
 correction into a prompt as plain text: it recalls the taught row perfectly and
-falls back everywhere else, which makes it a lower bound on the prompted
-approach. A measured model adapter replaces it in a later milestone. It is
+falls back everywhere else. It does not bound the performance of an actual
+prompted model. A measured model adapter replaces it in a later milestone. It is
 labelled as a stand in in the code and it is not a language model.
 
 ### The holdout is a whole supplier
@@ -210,10 +249,10 @@ Splitting by random row would put near duplicate rows on both sides. The
 `corvid` supplier is held out entirely, uses a different decimal convention, and
 never appears in the teaching set. A test asserts that last part.
 
-### Generated cases stay separate from real ones
+### Authored challenges stay separate from source fixtures
 
 The 6 counterexamples in `cases/generated.jsonl` each carry a reviewer
-rationale and are never merged into the real case numbers. A rule that only
+rationale and are reported separately from source fixture numbers. A rule that only
 satisfies its own counterexamples has not been shown to transfer.
 
 ## Commands
@@ -240,7 +279,10 @@ $ skillfoundry explain corrected acme:AC-100
 
 ```
 $ pytest -q
-135 passed in 0.40s
+162 passed
+
+$ cd apps/web && npm test
+4 passed
 ```
 
 The suite covers the operator properties the product contract requires: unit
@@ -252,7 +294,7 @@ money. Grading is independent: no test asks a model whether it did well.
 
 Read these before drawing conclusions from the numbers above.
 
-- **The fixtures are synthetic and small.** 32 real cases across 3 invented
+- **The fixtures are synthetic and small.** 32 source fixtures across 3 invented
   suppliers, hand labelled by the author. The 38 out of 38 result describes this
   fixture set and nothing else. It is not evidence that the rule works on a real
   supplier feed, and it is not a benchmark.
@@ -271,10 +313,13 @@ Read these before drawing conclusions from the numbers above.
 - **The domain is one transformation.** Unit normalization for catalog prices.
   Field extraction, mapping lookup, and conditional transformation are in the
   operator set but only unit normalization is exercised end to end.
-- **No API, no UI, no persistence.** Milestone A is a library and a CLI. There
-  is no database, no job runner, no authentication, and no organization
-  ownership enforcement, all of which the blueprint requires before this is a
-  team product.
+- **Local prototype, not a team service.** The frontend and FastAPI API persist
+  corrections and evaluation snapshots in SQLite. There is no authentication,
+  organization ownership, worker queue, model proposer, arbitrary file import,
+  editable rule AST, or production publishing. Evaluations are synchronous and
+  bounded to the bundled suite. See [limits](docs/limits.md).
+- **The gate uses positive net improvement, not a significance threshold.** The
+  exact paired p-value is reported as evidence, not used as proof of transfer.
 - **The critical error threshold is a judgement.** A unit price wrong by a
   factor of 2 or more is classified critical because the smallest real pack is
   two. A price wrong by 1.5x is graded as an ordinary wrong value. That boundary
@@ -286,13 +331,16 @@ Read these before drawing conclusions from the numbers above.
 packages/domain/          product rules: units, AST, validation, interpreter, library
 packages/evaluation/      independent metrics, splits, baselines, gate
 packages/cli/             offline command line interface
+services/api/            local FastAPI API and SQLite persistence
+apps/web/                React teaching workbench and original SVG assets
 fixtures/demo/            3 synthetic suppliers, hand labelled cases, taught correction
 tests/                    property tests and the end to end suite
 docs/                     architecture and the limits of what is measured
 ```
 
-Directories from the blueprint's repository contract that milestone A does not
-populate yet: `apps/web`, `services/api`, `services/worker`, `deploy`.
+`services/worker` and `deploy` remain future work. This source checkout is the
+supported installation layout; a standalone wheel with embedded fixtures is not
+yet provided.
 
 ## Licence
 

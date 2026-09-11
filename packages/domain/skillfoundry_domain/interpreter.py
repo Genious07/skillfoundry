@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from decimal import Decimal, DecimalException
 from typing import Any, Mapping, Sequence
 
 from .ast import (
@@ -137,7 +138,9 @@ def _sources_of(node: Any, env: _Env) -> tuple[str, ...]:
 def _truthy(value: Any) -> bool:
     if isinstance(value, bool):
         return value
-    raise InterpreterError(f"condition did not evaluate to a boolean, got {type(value).__name__}")
+    raise InterpreterError(
+        f"condition did not evaluate to a boolean, got {type(value).__name__}"
+    )
 
 
 def _eval(node: Any, env: _Env, path: str) -> Any:
@@ -201,7 +204,9 @@ def _eval(node: Any, env: _Env, path: str) -> Any:
             return left != right
         if cmp in {"in", "not_in"}:
             if not isinstance(right, str):
-                raise InterpreterError("membership test expects a comma separated literal")
+                raise InterpreterError(
+                    "membership test expects a comma separated literal"
+                )
             members = {part.strip() for part in right.split(",") if part.strip()}
             present = ("" if left is None else str(left).strip().lower()) in members
             return present if cmp == "in" else not present
@@ -218,13 +223,21 @@ def _eval(node: Any, env: _Env, path: str) -> Any:
         price = _eval(node.price, env, path)
         count = _eval(node.count, env, path)
         if not isinstance(price, ParsedMoney):
-            raise InterpreterError(f"convert expects parsed money, got {type(price).__name__}")
+            raise InterpreterError(
+                f"convert expects parsed money, got {type(price).__name__}"
+            )
         if not isinstance(count, ParsedCount):
-            raise InterpreterError(f"convert expects a parsed count, got {type(count).__name__}")
+            raise InterpreterError(
+                f"convert expects a parsed count, got {type(count).__name__}"
+            )
         if price.status is not ParseStatus.OK or price.value is None:
-            raise InterpreterError(f"convert refused: price is {price.status.value} ({price.reason})")
+            raise InterpreterError(
+                f"convert refused: price is {price.status.value} ({price.reason})"
+            )
         if count.status is not ParseStatus.OK or count.value is None:
-            raise InterpreterError(f"convert refused: count is {count.status.value} ({count.reason})")
+            raise InterpreterError(
+                f"convert refused: count is {count.status.value} ({count.reason})"
+            )
         return price.value.per_unit(count.value)
 
     raise InterpreterError(f"unsupported expression node {type(node).__name__}")
@@ -250,7 +263,9 @@ def _unwrap(value: Any, execution: Execution) -> Any:
     return value
 
 
-def _exec(statements: Sequence[Stmt], env: _Env, execution: Execution, path: str) -> None:
+def _exec(
+    statements: Sequence[Stmt], env: _Env, execution: Execution, path: str
+) -> None:
     for index, stmt in enumerate(statements):
         here = f"{path}/{index}:{stmt.op}"
 
@@ -283,7 +298,9 @@ def _exec(statements: Sequence[Stmt], env: _Env, execution: Execution, path: str
         raise InterpreterError(f"unsupported statement node {type(stmt).__name__}")
 
 
-def matching_cases(branch: Branch, row: Mapping[str, Any], tables, context) -> list[int]:
+def matching_cases(
+    branch: Branch, row: Mapping[str, Any], tables, context
+) -> list[int]:
     """Indices of every branch case whose condition holds for this row.
 
     Used by the branch exclusivity property test. A well formed branch matches
@@ -316,6 +333,10 @@ def run(
         procedure_digest=procedure.digest,
         row_id=row_id or str(row.get("supplier_sku", "unknown")),
     )
+    validation = procedure.validate_structure(tables)
+    if not validation.ok:
+        execution.fault = validation.describe()
+        return execution
     env = _Env(row, tables or {}, context)
 
     try:
@@ -338,8 +359,28 @@ def run(
             return execution
 
         _exec(list(procedure.body), env, execution, "body")
-    except InterpreterError as exc:
+        if execution.reviews:
+            execution.output.clear()
+            execution.evidence.clear()
+        else:
+            for spec in procedure.output_schema:
+                value = execution.output.get(spec.name)
+                if value is None and not spec.required:
+                    continue
+                valid = {
+                    "money": lambda v: (
+                        isinstance(v, Decimal) and v.is_finite() and v >= 0
+                    ),
+                    "count": lambda v: type(v) is int and v > 0,
+                    "text": lambda v: isinstance(v, str),
+                    "bool": lambda v: type(v) is bool,
+                }
+                if spec.kind not in valid or not valid[spec.kind](value):
+                    raise InterpreterError(f"output {spec.name!r} must be {spec.kind}")
+    except (InterpreterError, DecimalException, ValueError) as exc:
         execution.fault = str(exc)
         execution.output.clear()
+        execution.evidence.clear()
+        execution.rounding_applied = False
 
     return execution

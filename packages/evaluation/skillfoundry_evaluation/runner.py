@@ -25,7 +25,11 @@ class Fixtures:
         return [*self.real, *self.generated]
 
     def split(self, name: str, origin: str | None = None) -> list[Case]:
-        pool = self.all_cases if origin is None else [c for c in self.all_cases if c.origin == origin]
+        pool = (
+            self.all_cases
+            if origin is None
+            else [c for c in self.all_cases if c.origin == origin]
+        )
         return [c for c in pool if c.split == name]
 
 
@@ -37,6 +41,19 @@ def load_fixtures(root: Path) -> Fixtures:
     rows_by_case: dict[str, dict[str, str]] = {
         key: dict(row.values) for key, row in source_rows.items()
     }
+    combined = case_sets["real"] + case_sets["generated"]
+    if len({c.case_id for c in combined}) != len(combined):
+        raise ValueError("duplicate evaluation case IDs")
+    for origin, cases in case_sets.items():
+        for case in cases:
+            if case.origin != origin or case.supplier not in suppliers:
+                raise ValueError("case origin or supplier does not match its source")
+            if origin == "real" and case.split != suppliers[case.supplier].split:
+                raise ValueError("source case split differs from its supplier group")
+            if not case.label_reviewed:
+                raise ValueError(
+                    "unreviewed labels cannot enter the curated evaluation suite"
+                )
     for case in case_sets["generated"]:
         if case.row is None:
             raise ValueError(f"generated case {case.case_id!r} must carry its own row")

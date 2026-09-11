@@ -100,12 +100,12 @@ class Compare(Node):
 
 class All(Node):
     op: TypingLiteral["all"] = "all"
-    terms: list["Expr"] = Field(min_length=1)
+    terms: tuple["Expr", ...] = Field(min_length=1)
 
 
 class Any_(Node):
     op: TypingLiteral["any"] = "any"
-    terms: list["Expr"] = Field(min_length=1)
+    terms: tuple["Expr", ...] = Field(min_length=1)
 
 
 class Not(Node):
@@ -128,8 +128,17 @@ class ConvertPerUnit(Node):
 
 Expr = Annotated[
     Union[
-        Literal, Ref, ReadField, ParseMoney, ParseCount, Lookup,
-        Compare, All, Any_, Not, ConvertPerUnit,
+        Literal,
+        Ref,
+        ReadField,
+        ParseMoney,
+        ParseCount,
+        Lookup,
+        Compare,
+        All,
+        Any_,
+        Not,
+        ConvertPerUnit,
     ],
     Field(discriminator="op"),
 ]
@@ -153,13 +162,13 @@ class RequestReview(Node):
 class BranchCase(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     when: "Expr"
-    body: list["Stmt"] = Field(min_length=1)
+    body: tuple["Stmt", ...] = Field(min_length=1)
 
 
 class Branch(Node):
     op: TypingLiteral["branch"] = "branch"
-    cases: list[BranchCase] = Field(min_length=1)
-    otherwise: list["Stmt"] = Field(default_factory=list)
+    cases: tuple[BranchCase, ...] = Field(min_length=1)
+    otherwise: tuple["Stmt", ...] = ()
 
 
 Stmt = Annotated[Union[Emit, RequestReview, Branch], Field(discriminator="op")]
@@ -210,7 +219,21 @@ def walk(node: object):
 
 
 for _model in (
-    Literal, Ref, ReadField, ParseMoney, ParseCount, Lookup, Compare,
-    All, Any_, Not, ConvertPerUnit, Emit, RequestReview, Branch, BranchCase, Binding,
+    Literal,
+    Ref,
+    ReadField,
+    ParseMoney,
+    ParseCount,
+    Lookup,
+    Compare,
+    All,
+    Any_,
+    Not,
+    ConvertPerUnit,
+    Emit,
+    RequestReview,
+    Branch,
+    BranchCase,
+    Binding,
 ):
     _model.model_rebuild()

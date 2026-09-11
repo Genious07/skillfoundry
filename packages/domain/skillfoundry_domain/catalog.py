@@ -58,5 +58,8 @@ def load_all_rows(root: Path, suppliers: dict[str, Supplier]) -> dict[str, Sourc
     index: dict[str, SourceRow] = {}
     for supplier_id in suppliers:
         for row in load_rows(root, supplier_id):
-            index[f"{supplier_id}:{row.row_id}"] = row
+            key = f"{supplier_id}:{row.row_id}"
+            if key in index:
+                raise ValueError(f"duplicate source row {key}")
+            index[key] = row
     return index

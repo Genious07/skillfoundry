@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP, localcontext
 from enum import Enum
 from typing import Final
 
@@ -60,9 +60,15 @@ class Money:
         """
         if count <= 0:
             raise ValueError("count must be positive")
-        raw = self.amount / Decimal(count)
-        quantized = raw.quantize(UNIT_PRICE_EXPONENT, rounding=ROUND_HALF_UP)
-        return Money(quantized, self.currency), quantized != raw
+        if not self.amount.is_finite() or self.amount < 0:
+            raise ValueError("money must be finite and nonnegative")
+        with localcontext() as context:
+            context.prec = max(
+                64, len(self.amount.as_tuple().digits) + len(str(count)) + 16
+            )
+            raw = self.amount / Decimal(count)
+            quantized = raw.quantize(UNIT_PRICE_EXPONENT, rounding=ROUND_HALF_UP)
+            return Money(quantized, self.currency), quantized != raw
 
 
 @dataclass(frozen=True)
@@ -81,17 +87,55 @@ class ParsedCount:
 
 # Suffixes that genuinely denote a quantity of items.
 COUNT_NOUNS: Final[frozenset[str]] = frozenset(
-    {"pk", "pack", "packs", "ct", "count", "pc", "pcs", "piece", "pieces", "x", "ea", "each"}
+    {
+        "pk",
+        "pack",
+        "packs",
+        "ct",
+        "count",
+        "pc",
+        "pcs",
+        "piece",
+        "pieces",
+        "x",
+        "ea",
+        "each",
+    }
 )
 
 # Suffixes that denote a physical dimension, mass, or volume. A number carrying
 # one of these is never a pack size.
 DIMENSION_UNITS: Final[frozenset[str]] = frozenset(
     {
-        "mm", "cm", "m", "in", "inch", "inches", "ft", "thou",
-        "g", "kg", "mg", "lb", "lbs", "oz",
-        "ml", "l", "cl", "gal", "qt", "pt",
-        "v", "w", "kw", "a", "ma", "hz", "khz", "nm", "um",
+        "mm",
+        "cm",
+        "m",
+        "in",
+        "inch",
+        "inches",
+        "ft",
+        "thou",
+        "g",
+        "kg",
+        "mg",
+        "lb",
+        "lbs",
+        "oz",
+        "ml",
+        "l",
+        "cl",
+        "gal",
+        "qt",
+        "pt",
+        "v",
+        "w",
+        "kw",
+        "a",
+        "ma",
+        "hz",
+        "khz",
+        "nm",
+        "um",
     }
 )
 
@@ -107,25 +151,39 @@ def parse_money(raw: object, currency: str, locale: Locale) -> ParsedMoney:
     if not text:
         return ParsedMoney(ParseStatus.MISSING, reason="price is empty")
 
-    cleaned = _MONEY_STRIP.sub("", text)
-    if not cleaned or cleaned in {"-", ".", ","}:
-        return ParsedMoney(ParseStatus.AMBIGUOUS, reason=f"no numeric content in {text!r}")
-
-    if locale is Locale.EU:
-        # EU: dot groups thousands, comma is the decimal separator.
-        if cleaned.count(",") > 1:
-            return ParsedMoney(ParseStatus.AMBIGUOUS, reason=f"multiple decimal commas in {text!r}")
-        normalized = cleaned.replace(".", "").replace(",", ".")
-    else:
-        # US: comma groups thousands, dot is the decimal separator.
-        if cleaned.count(".") > 1:
-            return ParsedMoney(ParseStatus.AMBIGUOUS, reason=f"multiple decimal points in {text!r}")
-        normalized = cleaned.replace(",", "")
+    if len(text) > 80:
+        return ParsedMoney(
+            ParseStatus.AMBIGUOUS, reason="price exceeds supported length"
+        )
+    # Accept a whole numeric token, with an optional matching currency prefix.
+    # Removing arbitrary characters would turn 1e3 into 13 and 10/12 into 1012.
+    symbols = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥"}
+    for prefix in (currency, symbols.get(currency, "")):
+        if prefix and text.startswith(prefix):
+            text = text[len(prefix) :].strip()
+            break
+    pattern = (
+        r"(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)(?:,[0-9]{1,8})?"
+        if locale is Locale.EU
+        else r"(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]{1,8})?"
+    )
+    if re.fullmatch(pattern, text) is None or sum(c.isdigit() for c in text) > 24:
+        return ParsedMoney(
+            ParseStatus.AMBIGUOUS,
+            reason="price is not a supported complete numeric token",
+        )
+    normalized = (
+        text.replace(".", "").replace(",", ".")
+        if locale is Locale.EU
+        else text.replace(",", "")
+    )
 
     try:
         amount = Decimal(normalized)
     except InvalidOperation:
-        return ParsedMoney(ParseStatus.AMBIGUOUS, reason=f"cannot parse {text!r} as a number")
+        return ParsedMoney(
+            ParseStatus.AMBIGUOUS, reason=f"cannot parse {text!r} as a number"
+        )
 
     if amount < 0:
         return ParsedMoney(ParseStatus.AMBIGUOUS, reason=f"negative price {text!r}")
@@ -146,13 +204,19 @@ def parse_count(raw: object, lenient: bool = False) -> ParsedCount:
     if not text:
         return ParsedCount(ParseStatus.MISSING, reason="pack size is empty")
 
+    if len(text) > 40:
+        return ParsedCount(
+            ParseStatus.AMBIGUOUS, reason="count exceeds supported length"
+        )
     match = _COUNT_PATTERN.match(text)
     if match is None:
         if lenient:
             loose = re.match(r"^(\d+)", text)
             if loose is not None and int(loose.group(1)) > 0:
                 return ParsedCount(ParseStatus.OK, value=int(loose.group(1)))
-        return ParsedCount(ParseStatus.AMBIGUOUS, reason=f"pack size {text!r} is not a plain count")
+        return ParsedCount(
+            ParseStatus.AMBIGUOUS, reason=f"pack size {text!r} is not a plain count"
+        )
 
     digits, suffix = match.group(1), match.group(2)
     number = int(digits)
@@ -171,5 +235,7 @@ def parse_count(raw: object, lenient: bool = False) -> ParsedCount:
             reason=f"pack size {text!r} carries an unrecognized suffix {suffix!r}",
         )
     if number == 0:
-        return ParsedCount(ParseStatus.AMBIGUOUS, reason="pack size of zero is not usable")
+        return ParsedCount(
+            ParseStatus.AMBIGUOUS, reason="pack size of zero is not usable"
+        )
     return ParsedCount(ParseStatus.OK, value=number)

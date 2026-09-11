@@ -24,7 +24,7 @@ fixture result for a product claim.
 ## Not established
 
 - **That the rule works on real supplier data.** The fixtures are invented. 32
-  real cases across 3 synthetic suppliers, labelled by one person, the author.
+  source fixtures across 3 synthetic suppliers, labelled by one person, the author.
   There is no inter annotator agreement because there was one annotator.
 - **That the approach transfers.** The holdout comparison has 10 cases and 6
   discordant pairs. The exact two sided p value of 0.0312 is correctly computed
@@ -52,13 +52,32 @@ ordinary wrong value.
 This is a product judgement rather than a derived constant. It is defined once
 in `metrics.py` as `CRITICAL_RATIO` and pinned by a boundary test.
 
+## Local workbench boundary
+
+The React interface and FastAPI API now persist corrections and evaluation
+snapshots in SQLite. Two manual templates execute through the trusted
+interpreter. The scratchpad accepts a bounded single row. No model generates a
+rule, no file importer exists, and the displayed structured procedure is read-only.
+Saved artifacts include the procedure, lookup tables, supplier conventions,
+fixture labels and inputs, teaching evidence, execution traces, metrics and
+digests. A digest detects accidental alteration; it is not a signed release.
+
+The 38-case suite runs synchronously. There is no worker, tenant isolation,
+authentication, Postgres deployment, production release registry, or arbitrary
+procedure upload. The server is for a single user on localhost. This is a
+bounded Milestone B teaching loop, not completion of milestones B through F.
+
+The gate requires positive paired net improvement, not a p-value threshold.
+Its supplier holdout is visible demo data and cannot validate unseen-data
+transfer. The internal origin label `real` means synthetic supplier-source
+fixture, not observed customer data.
+
 ## Next steps to make this a product
 
-1. Measure expert correction time on real corrections, because the value
-   proposition depends on it.
-2. Recruit three catalog specialists and give them the prototype task without
-   coaching, per the blueprint's validation section.
-3. Add persistence, the job runner, and organization ownership, so more than one
-   person can use it.
-4. Add the three pane teaching interface over the existing evidence records.
-5. Only then add a model backed rule proposer, measured against the same gate.
+1. Obtain independently labeled real supplier examples and a blind holdout;
+   measure specialist correction time and acceptable review workload.
+2. Add reviewed CSV import and an editable, validated rule authoring workflow.
+3. Evaluate an actual model proposer against both a prompted-model baseline and
+   verbatim recall. Keep the critical-error veto and separate challenge results.
+4. Add identities, organization isolation, asynchronous jobs, database migrations,
+   and a signed versioned release artifact before shared deployment.

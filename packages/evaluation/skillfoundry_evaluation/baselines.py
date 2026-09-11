@@ -8,9 +8,7 @@ generalized. It reproduces the taught row exactly and falls back to the original
 behaviour everywhere else.
 
 Baseline two is a deterministic stand in for pasting the correction into a
-prompt as plain text. It is not a language model. It is a lower bound on that
-approach, because it always recalls the taught row perfectly and never
-misapplies it, which a prompted model would not guarantee. It exists so that a
+prompt as plain text. It is not a language model. It is a reference baseline, not a mathematical lower bound on a prompted model. It exists so that a
 learned rule has to demonstrate transfer, not memorization. A future milestone
 replaces it with a measured model adapter.
 """
@@ -39,6 +37,11 @@ def row_digest(values: Mapping[str, str]) -> str:
         separators=(",", ":"),
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def recall_key(values: Mapping[str, str], context: SupplierContext) -> str:
+    """Recall is scoped to the supplier and its declared money convention."""
+    return f"{context.supplier_id}:{context.locale.value}:{context.currency}:{row_digest(values)}"
 
 
 class Evaluable(Protocol):
@@ -86,7 +89,7 @@ class LiteralRecall:
     def execute(
         self, values: Mapping[str, str], context: SupplierContext, row_id: str
     ) -> Execution:
-        digest = row_digest(values)
+        digest = recall_key(values, context)
         if digest not in self.corrections:
             return self.fallback.execute(values, context, row_id)
 
@@ -116,6 +119,9 @@ def load_corrections(
     path: Path, rows_by_case: Mapping[str, Mapping[str, str]]
 ) -> dict[str, dict[str, object]]:
     """Index taught corrections by the digest of the row they were taught on."""
+    from skillfoundry_domain.catalog import load_suppliers
+
+    suppliers = load_suppliers(path.parent)
     corrections: dict[str, dict[str, object]] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -124,5 +130,8 @@ def load_corrections(
         values = rows_by_case.get(payload["case_id"])
         if values is None:
             raise KeyError(f"teaching case {payload['case_id']!r} has no source row")
-        corrections[row_digest(values)] = payload["corrected"]
+        supplier = suppliers[payload["case_id"].split(":", 1)[0]]
+        if supplier.split == "holdout":
+            raise ValueError("holdout supplier cannot contribute teaching corrections")
+        corrections[recall_key(values, supplier.context)] = payload["corrected"]
     return corrections

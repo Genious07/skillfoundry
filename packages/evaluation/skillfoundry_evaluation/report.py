@@ -46,7 +46,9 @@ def _critical_ids(outcomes: Sequence[CaseOutcome]) -> set[str]:
     return {o.case_id for o in outcomes if o.verdict.is_critical}
 
 
-def _regressed_ids(baseline: Sequence[CaseOutcome], candidate: Sequence[CaseOutcome]) -> set[str]:
+def _regressed_ids(
+    baseline: Sequence[CaseOutcome], candidate: Sequence[CaseOutcome]
+) -> set[str]:
     base = {o.case_id: o.verdict.is_correct for o in baseline}
     return {
         o.case_id
@@ -64,7 +66,11 @@ def evaluate_gate(
     candidate_holdout: RunResult,
     reviewed_regressions: frozenset[str] = frozenset(),
 ) -> ReleaseDecision:
-    new_critical = sorted(_critical_ids(candidate.outcomes) - _critical_ids(original.outcomes))
+    # Validate full-suite identity before judging missing regressions as successes.
+    compare_paired(original.outcomes, candidate.outcomes)
+    new_critical = sorted(
+        _critical_ids(candidate.outcomes) - _critical_ids(original.outcomes)
+    )
     regressed = _regressed_ids(original.outcomes, candidate.outcomes)
     unreviewed = sorted(regressed - reviewed_regressions)
 
@@ -94,11 +100,11 @@ def evaluate_gate(
         ),
         GateCriterion(
             code="improves_on_holdout",
-            description="Positive paired performance against the original on real held out cases",
+            description="Positive paired performance against the original on supplier-held-out source fixtures",
             passed=holdout.net_change > 0,
             detail=(
                 f"fixed {holdout.candidate_fixed}, broke {holdout.candidate_broke} "
-                f"of {holdout.sample_size} held out cases, exact two sided p={holdout.p_value:.4f}"
+                f"of {holdout.sample_size} held out cases, exact two sided p={holdout.p_value:.4g}"
             ),
         ),
         GateCriterion(
@@ -108,7 +114,7 @@ def evaluate_gate(
             detail=(
                 f"fixed {against_recall.candidate_fixed}, broke {against_recall.candidate_broke} "
                 f"against verbatim recall over {against_recall.sample_size} cases, "
-                f"exact two sided p={against_recall.p_value:.4f}"
+                f"exact two sided p={against_recall.p_value:.4g}"
             ),
         ),
         GateCriterion(
@@ -175,7 +181,9 @@ def render_failures(result: RunResult, limit: int = 12) -> str:
         Verdict.WRONG_REVIEW_CODE: 3,
         Verdict.OVER_ABSTAINED: 4,
     }
-    for outcome in sorted(bad, key=lambda o: (order.get(o.verdict, 9), o.case_id))[:limit]:
+    for outcome in sorted(bad, key=lambda o: (order.get(o.verdict, 9), o.case_id))[
+        :limit
+    ]:
         lines.append(
             f"  {outcome.case_id:<18} {outcome.verdict.value:<24} "
             f"expected {outcome.expected:<28} got {outcome.actual}"

@@ -12,7 +12,11 @@ from pathlib import Path
 
 from skillfoundry_domain import library
 from skillfoundry_domain.interpreter import TerminalState, run
-from skillfoundry_evaluation.baselines import LiteralRecall, ProcedureRunner, load_corrections
+from skillfoundry_evaluation.baselines import (
+    LiteralRecall,
+    ProcedureRunner,
+    load_corrections,
+)
 from skillfoundry_evaluation.report import (
     evaluate_gate,
     render_decision,
@@ -49,7 +53,9 @@ def cmd_show(args) -> int:
     proc = library.load(args.name)
     report = proc.validate_structure(library.TABLES)
     print(f"{proc.name}")
-    print(f"  procedure   {proc.procedure_id} revision {proc.revision} digest {proc.digest}")
+    print(
+        f"  procedure   {proc.procedure_id} revision {proc.revision} digest {proc.digest}"
+    )
     print(f"  origin      {proc.origin}")
     print(f"  capability  {', '.join(proc.capabilities)}")
     print(f"  validation  {report.describe()}")
@@ -74,7 +80,9 @@ def cmd_run(args) -> int:
 
     supplier = fixtures.suppliers[args.supplier]
     print(f"{proc.name}  digest {proc.digest}")
-    print(f"supplier {supplier.supplier_id}  locale {supplier.locale.value}  currency {supplier.currency}")
+    print(
+        f"supplier {supplier.supplier_id}  locale {supplier.locale.value}  currency {supplier.currency}"
+    )
     print()
     header = (
         f"{'sku':<10}{'description':<24}{'listed':>12}{' unit':<10}"
@@ -86,7 +94,9 @@ def cmd_run(args) -> int:
     for key, values in sorted(fixtures.rows_by_case.items()):
         if not key.startswith(f"{supplier.supplier_id}:"):
             continue
-        execution = run(proc, values, tables=library.TABLES, context=supplier.context, row_id=key)
+        execution = run(
+            proc, values, tables=library.TABLES, context=supplier.context, row_id=key
+        )
         state = execution.terminal_state
         if state is TerminalState.NEEDS_REVIEW:
             outcome = f"review: {execution.reviews[0].code}"
@@ -115,8 +125,11 @@ def cmd_explain(args) -> int:
     if values is None:
         print(f"unknown case {args.case!r}")
         return 2
-    supplier = fixtures.suppliers[args.case.split(":")[0]]
-    execution = run(proc, values, tables=library.TABLES, context=supplier.context, row_id=args.case)
+    case = next(c for c in fixtures.all_cases if c.case_id == args.case)
+    supplier = fixtures.suppliers[case.supplier]
+    execution = run(
+        proc, values, tables=library.TABLES, context=supplier.context, row_id=args.case
+    )
 
     print(f"case {args.case} under {proc.name} (digest {proc.digest})")
     print(f"  source     {json.dumps(values)}")
@@ -145,7 +158,9 @@ def _build_runners(fixtures):
         name="baseline_original",
         label="Baseline 1, original procedure",
     )
-    corrections = load_corrections(fixtures.root / "teaching.jsonl", fixtures.rows_by_case)
+    corrections = load_corrections(
+        fixtures.root / "teaching.jsonl", fixtures.rows_by_case
+    )
     recall = LiteralRecall(fallback=original, corrections=corrections)
     return original, recall, corrections
 
@@ -174,9 +189,13 @@ def cmd_evaluate(args) -> int:
     holdout = fixtures.split("holdout", origin="real")
 
     print(f"fixtures      {root}")
-    print(f"case suite    {len(fixtures.real)} real, {len(fixtures.generated)} generated")
-    print(f"held out      {len(holdout)} real cases from suppliers "
-          f"{sorted({c.supplier for c in holdout})}, never shown to the proposer")
+    print(
+        f"case suite    {len(fixtures.real)} synthetic source fixtures, {len(fixtures.generated)} authored challenges"
+    )
+    print(
+        f"held out      {len(holdout)} source fixtures from suppliers "
+        f"{sorted({c.supplier for c in holdout})}, excluded from teaching; visible synthetic demo"
+    )
     print(f"taught        {len(corrections)} correction(s) from teaching.jsonl")
     print()
 
@@ -184,7 +203,7 @@ def cmd_evaluate(args) -> int:
     for candidate in candidates.values():
         runs.append(evaluate(candidate, suite, fixtures))
 
-    print("Full suite, real and generated cases together")
+    print("Full synthetic suite, source fixtures and authored challenges together")
     print(render_metrics_table(runs))
     print()
 
@@ -194,7 +213,11 @@ def cmd_evaluate(args) -> int:
     for key, candidate in candidates.items():
         candidate_run = evaluate(candidate, suite, fixtures)
         candidate_holdout = evaluate(candidate, holdout, fixtures)
-        reviewed = frozenset(args.reviewed or ()) if key == args.accept_regressions_for else frozenset()
+        reviewed = (
+            frozenset(args.reviewed or ())
+            if key == args.accept_regressions_for
+            else frozenset()
+        )
         decision = evaluate_gate(
             original=runs[0],
             recall=runs[1],
@@ -221,7 +244,9 @@ def main(argv: list[str] | None = None) -> int:
         prog="skillfoundry",
         description="Teach a catalog correction, then test whether it generalizes.",
     )
-    parser.add_argument("--fixtures", help="path to a fixture root (defaults to fixtures/demo)")
+    parser.add_argument(
+        "--fixtures", help="path to a fixture root (defaults to fixtures/demo)"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("procedures", help="list library procedures and validate them")
@@ -242,8 +267,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("case", help="for example acme:AC-100")
     p.set_defaults(func=cmd_explain)
 
-    p = sub.add_parser("evaluate", help="compare candidates against both baselines and the gate")
-    p.add_argument("--reviewed", nargs="*", help="case ids whose regression has been reviewed")
+    p = sub.add_parser(
+        "evaluate", help="compare candidates against both baselines and the gate"
+    )
+    p.add_argument(
+        "--reviewed", nargs="*", help="case ids whose regression has been reviewed"
+    )
     p.add_argument(
         "--accept-regressions-for",
         default=None,
